@@ -6,16 +6,17 @@ Contest agent image for [fgs-v4](https://github.com/whickerpoplawski-arch/fgs-v4
 
 Get `agent.tar.gz` from the latest [Release](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases).
 
-**Current:** [v5624fa3-bwrap](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases/tag/v5624fa3-bwrap) — bubblewrap + `danger-full-access` default (fixes hosted `SANDBOX_UNAVAILABLE` / approval gate).
+**Current:** [vf50c2a0-submit](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases/tag/vf50c2a0-submit) — **PR#10**: `verifyMode: command` + `submit_flag.mjs` + `FGS_UNIQUE_CODE` (fixes SCORE not counting after local regex "goal_final 已满足").
 
 ## Integrity
 
 | Field | Value |
 |-------|-------|
 | File | `agent.tar.gz` |
-| Size | ~379 MB |
-| SHA256 | `251f3bdccefe135114c0e4bd7788c204b488e3f79a1c74790967fbd85e5ff239` |
-| Source tip | [fgs-v4 @ 5624fa3](https://github.com/whickerpoplawski-arch/fgs-v4/commit/5624fa335b6253780b53dd84a6a8794f7a9044f5) (PR#8 `start?unique_code=`) |
+| Size | ~380M |
+| SHA256 | `1727cc1fc50af767a2aebbb9283c7cddf2f85e81d6326955c6dd882e10fbdd8b` |
+| Source tip | [fgs-v4 @ f50c2a0](https://github.com/whickerpoplawski-arch/fgs-v4/commit/f50c2a0f22f9a3b2a0ee8ec9285228c20d64d9da) (PR#10 submit fix) |
+| verifyMode | **command** (`node ./tools/submit_flag.mjs` → POST `/openapi/v1/challenges/submit`) |
 | LLM provider | `deepseek-contest` (`openai-completions`) — **not** stock `deepseek-official` (Messages) |
 | Sandbox | `DSH_PERMISSION_MODE=danger-full-access` + cordis `sandbox-policy` / `approval: never` |
 | bwrap | Debian `bubblewrap` 0.8.0 on PATH (`/usr/bin/bwrap`) |
@@ -24,18 +25,19 @@ Verify after download:
 
 ```bash
 sha256sum agent.tar.gz
-# expect: 251f3bdccefe135114c0e4bd7788c204b488e3f79a1c74790967fbd85e5ff239
+# expect: 1727cc1fc50af767a2aebbb9283c7cddf2f85e81d6326955c6dd882e10fbdd8b
 ```
 
-## What changed in v5624fa3-bwrap
+## What changed in vf50c2a0-submit
 
-Hosted logs: bash → `SANDBOX_UNAVAILABLE` (kernel 5.4, no Landlock, no `bwrap`); escalating to `danger-full-access` needed an approval channel the hosted runner does not have → "未达成" reports → SCORE 0 thrash.
+Platform SCORE stayed at 250 with only 1 "得分成功" while the harness logged many `goal_final 已满足`. Root cause: image defaulted to `verifyMode: regex` — local flag-shape match only, **never** POST to Challenges submit.
 
-Fixes in this image:
-1. **Install `bubblewrap`** so `workspace-write` sandbox can use `bwrap` if needed.
-2. **Default `DSH_PERMISSION_MODE=danger-full-access`** (Dockerfile ENV) so bash runs without sandbox fences and without approval prompts. Contest `cordis.patch.yml` also pins `sandbox-policy.mode: danger-full-access` and `approval.policy: never` if the platform clears undeclared env.
+Fixes in this image (fgs-v4 PR#10 @ f50c2a0):
+1. **Default `verifyMode: command`** + `verifyCommand: node ./tools/submit_flag.mjs` in plugin `cordis.patch.yml`.
+2. **Worker injects `FGS_UNIQUE_CODE`** (same id as start/close) so submit binds the right challenge under concurrency.
+3. Keeps bubblewrap + `danger-full-access` + `deepseek-contest` from prior releases.
 
-Prior: [v5624fa3-llmfix](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases/tag/v5624fa3-llmfix) fixed Messages 404 via provider rename.
+Prior: [v5624fa3-bwrap](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases/tag/v5624fa3-bwrap) (sandbox), [v5624fa3-llmfix](https://github.com/whickerpoplawski-arch/fgs-contest-image/releases/tag/v5624fa3-llmfix) (Messages 404).
 
 ## Upload env (platform Agent page)
 
@@ -46,4 +48,4 @@ Fill **only** these two:
 | `DEEPSEEK_API_KEY` | your DeepSeek API key |
 | `SOLVER_GATEWAY` | `1` |
 
-Do **not** set `BENCHMARK_*` vars. Image already includes `CONTEST_DSH_LAUNCH=1`, `DSH_PERMISSION_MODE=danger-full-access`, and related contest defaults.
+Do **not** set `BENCHMARK_*` vars. Do **not** set a global `FGS_UNIQUE_CODE` on the upload page (driver injects per challenge). Image already includes `CONTEST_DSH_LAUNCH=1`, `DSH_PERMISSION_MODE=danger-full-access`, and related contest defaults.
